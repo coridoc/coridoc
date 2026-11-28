@@ -8,6 +8,8 @@ module Ceradoc
       # selectors (tags/wildcards, lines, typed leveloffset, indent,
       # encoding). One typed form, never a re-flattened mirror.
       class IncludeOptions < Edge::Options
+        attribute :type, :string, default: 'IncludeOptions'
+
         attribute :include_options, Ceradoc::CoreModel::IncludeOptions
       end
     end

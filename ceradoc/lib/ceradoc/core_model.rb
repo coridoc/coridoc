@@ -89,5 +89,13 @@ module Ceradoc
     autoload :IncludeOptions, "#{__dir__}/core_model/include_options"
     autoload :IncludeLevelOffset, "#{__dir__}/core_model/include_level_offset"
     autoload :OutputArtifact, "#{__dir__}/core_model/output_artifact"
+
+    # Data-serialization registry + generated mappings (issue #384).
+    # Load-time side effect (populates CoreModel::TYPE_TO_CLASS /
+    # POLYMORPHIC and declares key_value/xml mappings for every Base
+    # subclass above), so require_relative per repo convention — it must
+    # run after every autoload entry above is registered, because the
+    # walker const_gets each model constant.
+    require_relative 'core_model/serialization'
   end
 end

@@ -26,7 +26,10 @@ module Ceradoc
 
       # @!attribute children
       #   @return [Array<Base>, nil] child elements (sections, blocks, etc.)
-      attribute :children, Base, collection: true
+      # polymorphic_class marks the collection as heterogeneous for the
+      # data-serialization lanes (issue #384): the generated mappings
+      # dispatch each item through CoreModel::POLYMORPHIC.
+      attribute :children, Base, collection: true, polymorphic_class: true
 
       # @!attribute attributes
       #   @return [Metadata, nil] document-level attributes (typed key-value pairs)

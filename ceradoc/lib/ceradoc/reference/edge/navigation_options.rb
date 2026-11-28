@@ -5,6 +5,8 @@ module Ceradoc
     class Edge < Lutaml::Model::Serializable
       # Options specific to navigation edges (xref, anchor).
       class NavigationOptions < Edge::Options
+        attribute :type, :string, default: 'NavigationOptions'
+
         attribute :tooltip, :string
       end
     end

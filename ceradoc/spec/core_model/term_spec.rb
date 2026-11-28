@@ -7,19 +7,19 @@ RSpec.describe Ceradoc::CoreModel::Term do
     it 'creates a simple term' do
       term = described_class.new(
         text: 'API',
-        type: 'acronym',
+        term_type: 'acronym',
         definition: 'Application Programming Interface'
       )
 
       expect(term.text).to eq('API')
-      expect(term.type).to eq('acronym')
+      expect(term.term_type).to eq('acronym')
       expect(term.definition).to eq('Application Programming Interface')
     end
 
     it 'creates a term with language' do
       term = described_class.new(
         text: 'ordinateur',
-        type: 'preferred',
+        term_type: 'preferred',
         lang: 'fr',
         definition: 'Machine electronique'
       )
@@ -36,11 +36,11 @@ RSpec.describe Ceradoc::CoreModel::Term do
     it 'creates a deprecated term' do
       term = described_class.new(
         text: 'old_term',
-        type: 'deprecated',
+        term_type: 'deprecated',
         definition: "Use 'new_term' instead"
       )
 
-      expect(term.type).to eq('deprecated')
+      expect(term.term_type).to eq('deprecated')
     end
   end
 
@@ -48,7 +48,7 @@ RSpec.describe Ceradoc::CoreModel::Term do
     let(:term1) do
       described_class.new(
         text: 'API',
-        type: 'acronym',
+        term_type: 'acronym',
         lang: 'en',
         definition: 'Application Programming Interface'
       )
@@ -57,7 +57,7 @@ RSpec.describe Ceradoc::CoreModel::Term do
     let(:term2) do
       described_class.new(
         text: 'API',
-        type: 'acronym',
+        term_type: 'acronym',
         lang: 'en',
         definition: 'Application Programming Interface'
       )
@@ -66,7 +66,7 @@ RSpec.describe Ceradoc::CoreModel::Term do
     let(:different_text) do
       described_class.new(
         text: 'REST',
-        type: 'acronym',
+        term_type: 'acronym',
         lang: 'en',
         definition: 'Application Programming Interface'
       )
@@ -75,7 +75,7 @@ RSpec.describe Ceradoc::CoreModel::Term do
     let(:different_type) do
       described_class.new(
         text: 'API',
-        type: 'preferred',
+        term_type: 'preferred',
         lang: 'en',
         definition: 'Application Programming Interface'
       )
@@ -84,7 +84,7 @@ RSpec.describe Ceradoc::CoreModel::Term do
     let(:different_lang) do
       described_class.new(
         text: 'API',
-        type: 'acronym',
+        term_type: 'acronym',
         lang: 'fr',
         definition: 'Application Programming Interface'
       )

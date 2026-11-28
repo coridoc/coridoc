@@ -66,7 +66,7 @@ RSpec.describe Ceradoc::Docx::Transform::FromCoreModel do
     end
 
     context 'with Term' do
-      let(:core_model) { Ceradoc::CoreModel::Term.new(text: 'Ruby', type: 'noun') }
+      let(:core_model) { Ceradoc::CoreModel::Term.new(text: 'Ruby', term_type: 'noun') }
 
       it 'produces a bold Paragraph' do
         expect(result).to be_a(Uniword::Wordprocessingml::Paragraph)

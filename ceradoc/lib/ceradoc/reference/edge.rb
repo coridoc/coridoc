@@ -33,7 +33,45 @@ module Ceradoc
       attribute :address, Ceradoc::Reference::Address
       attribute :source_id, :string
       attribute :label, :string
+      # Options are per-kind subclasses of the (attribute-less) base —
+      # heterogeneous like CoreModel children, so the data-serialization
+      # lanes dispatch through a class_map discriminator (#384). Same
+      # convention as CoreModel::Serialization: demodulized class name
+      # on the wire under the 'type' key.
+      OPTIONS_TYPE_TO_CLASS = {
+        'NavigationOptions' => 'Ceradoc::Reference::Edge::NavigationOptions',
+        'CitationOptions' => 'Ceradoc::Reference::Edge::CitationOptions',
+        'LinkOptions' => 'Ceradoc::Reference::Edge::LinkOptions',
+        'IncludeOptions' => 'Ceradoc::Reference::Edge::IncludeOptions',
+        'ImageRefOptions' => 'Ceradoc::Reference::Edge::ImageRefOptions',
+        'FootnoteRefOptions' => 'Ceradoc::Reference::Edge::FootnoteRefOptions'
+      }.freeze
+      OPTIONS_POLYMORPHIC = { attribute: 'type', class_map: OPTIONS_TYPE_TO_CLASS }.freeze
+
+      # Every options subclass renders its discriminator (default-valued
+      # attributes are omitted by default mappings, so the mapping is
+      # explicit) — the load side dispatches through OPTIONS_POLYMORPHIC.
+      OPTIONS_TYPE_TO_CLASS.each_value do |options_name|
+        options_klass = Object.const_get(options_name)
+        options_klass.key_value do
+          map 'type', to: :type, render_default: true
+          options_klass.attributes.each_key do |name|
+            next if name == :type
+
+            map name.to_s, to: name
+          end
+        end
+      end
+
       attribute :options, Ceradoc::Reference::Edge::Options
+
+      key_value do
+        map 'kind', to: :kind
+        map 'address', to: :address
+        map 'source_id', to: :source_id
+        map 'label', to: :label
+        map 'options', to: :options, polymorphic: OPTIONS_POLYMORPHIC
+      end
 
       class << self
         # Build an Edge with the given kind. Options are coerced to the

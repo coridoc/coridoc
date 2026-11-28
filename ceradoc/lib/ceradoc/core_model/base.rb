@@ -25,6 +25,16 @@ module Ceradoc
     #   model2 = CoreModel::Base.new(id: "test", title: "Test")
     #   model1.semantically_equivalent?(model2) # => true
     class Base < Lutaml::Model::Serializable
+      # @!attribute type
+      #   @return [String] class discriminator for data serialization
+      #     (issue #384). Carries the demodulized class name ("ParagraphBlock")
+      #     so JSON/YAML/XML round-trips can rebuild heterogeneous
+      #     children as their concrete classes. Defaults to the instance's
+      #     own class, so programmatically-built models serialize the same
+      #     wire shape as parsed ones. Dispatch registry:
+      #     CoreModel::POLYMORPHIC (core_model/serialization.rb).
+      attribute :type, :string, default: -> { CoreModel.demodulized_name(self.class) }
+
       # @!attribute id
       #   @return [String, nil] unique identifier for the element
       attribute :id, :string

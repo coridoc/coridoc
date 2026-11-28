@@ -5,6 +5,8 @@ module Ceradoc
     class Edge < Lutaml::Model::Serializable
       # Options for hyperlink edges.
       class LinkOptions < Edge::Options
+        attribute :type, :string, default: 'LinkOptions'
+
         attribute :role, :string
       end
     end

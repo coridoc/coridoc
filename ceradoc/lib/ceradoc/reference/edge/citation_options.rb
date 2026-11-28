@@ -8,6 +8,8 @@ module Ceradoc
       # is the optional page/section reference carried separately on
       # Address.fragment, not here.
       class CitationOptions < Edge::Options
+        attribute :type, :string, default: 'CitationOptions'
+
         attribute :style, :string
         attribute :suppress_author, :boolean, default: -> { false }
       end

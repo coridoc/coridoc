@@ -8,7 +8,9 @@ module Ceradoc
     # format identity via the class hierarchy — the class IS the format type.
     # Generic InlineElement instances use the format_type attribute for typing.
     class InlineElement < Base
-      attribute :children, Base, collection: true
+      # Heterogeneous mixed content — see structural_element.rb for the
+      # polymorphic_class marker contract (issue #384).
+      attribute :children, Base, collection: true, polymorphic_class: true
 
       include ChildrenContent
 
@@ -45,7 +47,9 @@ module Ceradoc
 
       attribute :format_type, :string
       attribute :content, :string
-      attribute :nested_elements, InlineElement, collection: true
+      # Heterogeneous inline nesting (Bold/Link/… mix) — polymorphic
+      # marker contract in structural_element.rb (issue #384).
+      attribute :nested_elements, InlineElement, collection: true, polymorphic_class: true
       attribute :target, :string
       attribute :stem_type, :string
       # Emphasis marker spelling recorded by formats that know it

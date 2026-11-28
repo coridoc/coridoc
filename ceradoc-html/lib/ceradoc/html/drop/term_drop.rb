@@ -13,7 +13,7 @@ module Ceradoc
         end
 
         def css_class
-          t = @model.type || 'term'
+          t = @model.term_type || 'term'
           "term term-#{t}"
         end
       end

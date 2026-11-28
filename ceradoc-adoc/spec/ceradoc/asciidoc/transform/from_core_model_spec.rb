@@ -107,7 +107,7 @@ RSpec.describe Ceradoc::AsciiDoc::Transform::FromCoreModel do
       it 'transforms a CoreModel Term to AsciiDoc Term' do
         core_term = Ceradoc::CoreModel::Term.new(
           text: 'API',
-          type: 'acronym'
+          term_type: 'acronym'
         )
 
         result = described_class.transform(core_term)

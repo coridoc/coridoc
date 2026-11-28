@@ -94,10 +94,13 @@ RSpec.describe Ceradoc::CoreModel::ChildrenContent do
       expect(h['children'].length).to eq(2)
     end
 
-    it 'omits children when empty' do
+    # render_empty (#384): an empty children array stays on the wire so a
+    # parsed [] round-trips as [] instead of collapsing to nil.
+    it 'renders children when empty' do
       block = Ceradoc::CoreModel::ParagraphBlock.new(content: 'Text')
       h = block.to_hash
-      expect(h).not_to have_key('children')
+      expect(h).to have_key('children')
+      expect(h['children']).to eq([])
     end
   end
 end

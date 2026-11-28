@@ -19,7 +19,9 @@ module Ceradoc
     #     bgcolor: "#ffff00"
     #   )
     class TableCell < Base
-      attribute :children, Base, collection: true
+      # Heterogeneous mixed content — see structural_element.rb for the
+      # polymorphic_class marker contract (issue #384).
+      attribute :children, Base, collection: true, polymorphic_class: true
 
       include ChildrenContent
 

@@ -37,7 +37,7 @@ module Ceradoc
       #   entry was stringified at construction (issue #255). Base-typed
       #   collections preserve TocEntry instances (the pattern used by
       #   Block/Table children).
-      attribute :entries, Base, collection: true
+      attribute :entries, Base, collection: true, polymorphic_class: true
 
       # @!attribute min_level
       #   @return [Integer] minimum heading level to include (default: 1)
@@ -86,8 +86,9 @@ module Ceradoc
       # @!attribute children
       #   @return [Array<TocEntry>] nested child entries
       #   Base-typed for the same reason as Toc#entries (self-referential;
-      #   see issue #255).
-      attribute :children, Base, collection: true
+      #   see issue #255). Heterogeneous — polymorphic_class marker
+      #   contract in structural_element.rb (issue #384).
+      attribute :children, Base, collection: true, polymorphic_class: true
 
       private
 

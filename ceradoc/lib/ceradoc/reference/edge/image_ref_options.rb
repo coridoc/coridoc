@@ -5,6 +5,8 @@ module Ceradoc
     class Edge < Lutaml::Model::Serializable
       # Options for image references.
       class ImageRefOptions < Edge::Options
+        attribute :type, :string, default: 'ImageRefOptions'
+
         attribute :alt_text, :string
         attribute :width, :string
         attribute :height, :string

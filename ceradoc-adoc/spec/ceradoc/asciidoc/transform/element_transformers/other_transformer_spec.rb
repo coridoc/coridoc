@@ -23,7 +23,7 @@ RSpec.describe Ceradoc::AsciiDoc::Transform::ElementTransformers::OtherTransform
 
       expect(result).to be_a(Ceradoc::CoreModel::Term)
       expect(result.text).to eq('Apple')
-      expect(result.type).to eq('preferred')
+      expect(result.term_type).to eq('preferred')
       expect(result.lang).to eq('en')
     end
   end

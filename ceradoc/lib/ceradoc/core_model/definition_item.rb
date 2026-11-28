@@ -18,12 +18,16 @@ module Ceradoc
       attribute :terms, :string, collection: true, default: []
 
       attribute :definitions, :string, collection: true
-      attribute :nested, DefinitionList
+      # Self-referential slot (DefinitionItem ↔ DefinitionList cycle) —
+      # polymorphic_class contract as in list_block.rb (issue #384).
+      attribute :nested, DefinitionList, polymorphic_class: true
       # `+`-continuation blocks attached to this dd in AsciiDoc source.
       # Each entry is a CoreModel block (ParagraphBlock, AdmonitionBlock,
       # etc.) that followed the dd after a `+` line — rendered as
       # additional children of the dd.
-      attribute :attached_children, Base, collection: true, initialize_empty: true
+      # Heterogeneous block mix — see structural_element.rb for the
+      # polymorphic_class marker contract (issue #384).
+      attribute :attached_children, Base, collection: true, initialize_empty: true, polymorphic_class: true
 
       def initialize(args = {})
         @term_children = args.delete(:term_children) || []

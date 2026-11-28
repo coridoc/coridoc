@@ -9,7 +9,7 @@ module Ceradoc
             def transform_term(term)
               Ceradoc::CoreModel::Term.new(
                 text: term.term.to_s,
-                type: term.type&.to_s || 'preferred',
+                term_type: term.type&.to_s || 'preferred',
                 lang: term.lang&.to_s || 'en',
                 source_line: term.source_line
               )

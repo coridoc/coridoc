@@ -8,17 +8,21 @@ module Ceradoc
     # sections. They can have various types (acronym, symbol, preferred, etc.)
     # and support multi-language content.
     #
+    # The term category is `term_type` (not `type`): `type` is the
+    # CoreModel-wide class discriminator for data serialization
+    # (issue #384) and is reserved on every Base subclass.
+    #
     # @example Creating a simple term
     #   term = CoreModel::Term.new(
     #     text: "API",
-    #     type: "acronym",
+    #     term_type: "acronym",
     #     definition: "Application Programming Interface"
     #   )
     #
     # @example Creating a multi-language term
     #   term = CoreModel::Term.new(
     #     text: "computer",
-    #     type: "preferred",
+    #     term_type: "preferred",
     #     lang: "en",
     #     definition: "An electronic device for processing data"
     #   )
@@ -27,9 +31,9 @@ module Ceradoc
       #   @return [String, nil] the term text
       attribute :text, :string
 
-      # @!attribute type
+      # @!attribute term_type
       #   @return [String, nil] term type ('acronym', 'symbol', 'preferred', 'admitted', 'deprecated')
-      attribute :type, :string
+      attribute :term_type, :string
 
       # @!attribute lang
       #   @return [String] language code (default: 'en')
@@ -46,7 +50,7 @@ module Ceradoc
       private
 
       def comparable_attributes
-        super + %i[text type lang definition]
+        super + %i[text term_type lang definition]
       end
     end
   end

@@ -118,7 +118,11 @@ module Ceradoc
 
       # @!attribute nested_list
       #   @return [ListBlock, nil] nested list within this item
-      attribute :nested_list, Ceradoc::CoreModel::ListBlock
+      # Self-referential slot (ListItem ↔ ListBlock cycle). polymorphic_class
+      # routes it through the discriminator on data-serialization loads so
+      # nested lists never depend on cycle-pruned child-transformation
+      # memoization (issue #384).
+      attribute :nested_list, Ceradoc::CoreModel::ListBlock, polymorphic_class: true
 
       private
 

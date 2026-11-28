@@ -538,7 +538,7 @@ RSpec.describe Ceradoc::Markdown::Transform::FromCoreModel do
     end
 
     context 'with Term' do
-      let(:core_model) { Ceradoc::CoreModel::Term.new(text: 'API', type: 'acronym') }
+      let(:core_model) { Ceradoc::CoreModel::Term.new(text: 'API', term_type: 'acronym') }
 
       it 'produces a Strong element' do
         expect(transform).to be_a(Ceradoc::Markdown::Strong)
