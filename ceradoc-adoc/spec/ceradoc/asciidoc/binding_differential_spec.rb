@@ -97,7 +97,7 @@ RSpec.describe 'AsciiDoc bound-vs-unbound differential (M3 binding seam)' do
     bindings = Ceradoc::AsciiDoc::Bindings
     table = JSON.parse(File.read(Ceradoc::AsciiDoc::Parser::GrammarBackend::ARTIFACT_PATH))
                 .fetch('model_bindings')
-    expect(table['version']).to eq('1.1')
+    expect(table['version']).to eq('1.2')
     expect(table['rules'].size).to eq(62)
     # One binding per table rule, matching its key set exactly.
     expect(bindings.inflater.bindings.map(&:keys)).to match_array(table['rules'].values.map { |rule| rule.fetch('keys').map(&:to_sym) })

@@ -23,11 +23,14 @@ module Ceradoc
     #   returns it (resolved on first use, for lazily loaded classes)
     # @!attribute captures [Hash{Symbol=>Symbol}] attribute => capture key
     # @!attribute defaults [Hash{Symbol=>Object}] attributes fixed by the rule
-    # @!attribute via [#call, nil] optional named hook for a rule's semantic
-    #   step: receives the assigned attributes, returns the attributes the
-    #   model is built from. Pure capture-to-attribute rules need none.
-    #   With `model: nil` the hook's return value IS the result (for rules
-    #   that build a tree, pass a value through, or return plain data).
+    # @!attribute via [#call, nil] the rule's step between the assigned
+    #   attributes and the model build: a named hook (semantic, the gem's
+    #   registry resolves it) or a compiled verb (declarative shape, see
+    #   {BindingVerbs}). Receives the assigned attributes, returns the
+    #   attributes the model is built from. Pure capture-to-attribute
+    #   rules need none. With `model: nil` the step's return value IS the
+    #   result (for rules that build a tree, pass a value through, or
+    #   return plain data).
     # @!attribute raw [Hash{Symbol=>Symbol}] attribute => capture key, assigned
     #   as captured: never inflated and never sent to the residual. For hooks
     #   that read the raw subtree themselves.
@@ -57,9 +60,9 @@ module Ceradoc
     #   (shared between inflaters, or the whole of a single-inflater
     #   grammar) are always included. nil = every rule.
     #
-    # The table schema (ceradoc#385, stage 1 of the SSOT tables):
+    # The table schema (ceradoc#385 stage 1, ceradoc#386 stage 2):
     #
-    #   version: '1.1'
+    #   version: '1.2'
     #   hooks:                     # the hook surface the table references,
     #     header: Hooks#header     # name => verb-ref (documentation; the
     #   rules:                     # callables come from `hooks:` above)
@@ -70,11 +73,18 @@ module Ceradoc
     #       children: {h: header}  # same feed, for captures holding nested nodes
     #       defaults: {lang: en}   # attributes fixed by the rule (JSON values)
     #       raw: {ial: ial}        # attribute => capture, assigned as captured
-    #       via: header            # hook name, declared in the hooks map
+    #       via: header            # hook name, declared in the hooks map, or
+    #                              # a verb: {verb: promote, attrs: {..}}
     #       optional: [title]      # captures that may be absent; expands to
     #                              # one binding per present/absent combination
     #       scoped: false          # hook also receives the inflate context
     #       group: block           # optional tag; see the `groups:` argument
+    #
+    # A `via` mapping declares a verb plus its config (`unwrap`, `flatten`,
+    # `promote`, `string` — see Ceradoc::BindingVerbs::VERBS) and an
+    # optional `then:` naming a declared hook applied to the verb's
+    # result. Verb mappings need a `1.2` table; a `via` string is a named
+    # hook in every version.
     #
     # Version 1 tables (parsanol's native shape) are the v1.1 subset
     # without hooks/via/raw/optional/scoped/group; they keep their
@@ -83,7 +93,7 @@ module Ceradoc
       return new(bindings: []) unless table
 
       version = table['version']
-      raise ArgumentError, "unsupported model_bindings version #{version.inspect}" unless version == 1 || version.to_s == '1.1'
+      raise ArgumentError, "unsupported model_bindings version #{version.inspect}" unless %w[1 1.1 1.2].include?(version.to_s)
 
       registry = HookRegistry.new(table.fetch('hooks', {}), hooks)
       bindings = table.fetch('rules').flat_map do |name, rule|
@@ -104,13 +114,17 @@ module Ceradoc
 
     TABLE_FIELDS = %w[keys model captures children defaults raw via optional scoped group].freeze
 
+    # Verbs whose result is an attribute mapping merged over the
+    # assigned ones (`unwrap` and `string` return a bare value).
+    VERBS_THAT_MERGE = %w[flatten promote].freeze
+
     # Validate a table against the schema documented on {from_table} and
     # return it normalized to string keys.
     def self.validate_table(raw)
       raise ArgumentError, 'model bindings: expected a mapping' unless raw.is_a?(Hash)
 
       version = raw['version']
-      raise ArgumentError, "model bindings: unsupported version #{version.inspect} (want 1 or '1.1')" unless version == 1 || version.to_s == '1.1'
+      raise ArgumentError, "model bindings: unsupported version #{version.inspect} (want 1, '1.1' or '1.2')" unless %w[1 1.1 1.2].include?(version.to_s)
 
       rules = raw['rules']
       raise ArgumentError, 'model bindings: `rules` must be a mapping' unless rules.is_a?(Hash)
@@ -119,10 +133,10 @@ module Ceradoc
       raise ArgumentError, 'model bindings: `hooks` must be a mapping' unless hooks.is_a?(Hash)
 
       { 'version' => version, 'hooks' => hooks,
-        'rules' => rules.to_h { |name, rule| [name.to_s, validate_rule(name, rule, hooks)] } }
+        'rules' => rules.to_h { |name, rule| [name.to_s, validate_rule(name, rule, hooks, version)] } }
     end
 
-    def self.validate_rule(name, rule, hooks)
+    def self.validate_rule(name, rule, hooks, version)
       raise ArgumentError, "model bindings: rule #{name.inspect} must be a mapping" unless rule.is_a?(Hash)
 
       unknown = rule.keys - TABLE_FIELDS
@@ -132,13 +146,60 @@ module Ceradoc
       model = rule['model']
       raise ArgumentError, "model bindings: rule #{name.inspect} needs a `model` name or null" unless model.nil? || (model.is_a?(String) && !model.empty?)
 
-      via = rule['via']
-      raise ArgumentError, "model bindings: rule #{name.inspect} names undeclared hook #{via.inspect}" if via && !hooks.key?(via.to_s)
+      validate_via(name, rule['via'], hooks, version)
       raise ArgumentError, "model bindings: rule #{name.inspect} `optional` must name captures" unless Array(rule['optional']).all?(String)
 
       normalized = rule.transform_keys(&:to_s)
       normalized['keys'] = normalized.fetch('keys').map(&:to_s)
       normalized
+    end
+
+    # A `via` string names a declared hook; a mapping declares a verb
+    # (plus config and an optional `then:` hook), which needs a 1.2
+    # table. Verb and config keys are checked against the catalog.
+    def self.validate_via(name, via, hooks, version)
+      return unless via
+
+      if via.is_a?(String)
+        return if hooks.key?(via)
+
+        raise ArgumentError, "model bindings: rule #{name.inspect} names undeclared hook #{via.inspect}"
+      end
+      unless via.is_a?(Hash)
+        raise ArgumentError, "model bindings: rule #{name.inspect} `via` must be a hook name or a verb mapping"
+      end
+
+      verb = via['verb']
+      accepted = BindingVerbs::VERBS.fetch(verb) do
+        raise ArgumentError, "model bindings: rule #{name.inspect} names unknown verb #{verb.inspect}"
+      end
+      raise ArgumentError, "model bindings: rule #{name.inspect} uses a verb, which needs table version '1.2'" unless version.to_s == '1.2'
+
+      unknown = via.keys - accepted - %w[verb then]
+      unless unknown.empty?
+        raise ArgumentError, "model bindings: rule #{name.inspect} verb #{verb.inspect} has unknown config #{unknown.first.inspect}"
+      end
+
+      missing = Array(BindingVerbs::VERB_REQUIRED[verb]) - via.keys
+      unless missing.empty?
+        raise ArgumentError, "model bindings: rule #{name.inspect} verb #{verb.inspect} needs `#{missing.first}`"
+      end
+
+      if verb == 'promote'
+        attrs = via['attrs']
+        raise ArgumentError, "model bindings: rule #{name.inspect} verb promote `attrs` must be a mapping" unless attrs.is_a?(Hash)
+
+        attrs.each do |attribute, field|
+          next if field.is_a?(String)
+          next if field.is_a?(Hash) && (field.keys - BindingVerbs::SPEC_FIELDS).empty?
+
+          raise ArgumentError, "model bindings: rule #{name.inspect} promotes #{attribute.inspect} with an invalid spec"
+        end
+      end
+
+      return if !via['then'] || hooks.key?(via['then'])
+
+      raise ArgumentError, "model bindings: rule #{name.inspect} names undeclared hook #{via['then'].inspect}"
     end
 
     # The bindings one table rule expands to: one per present/absent
@@ -155,7 +216,7 @@ module Ceradoc
                  .to_h { |attribute, key| [attribute.to_sym, key.to_sym] }
       raw = rule.fetch('raw', {}).to_h { |attribute, key| [attribute.to_sym, key.to_sym] }
       defaults = rule.fetch('defaults', {}).transform_keys(&:to_sym)
-      via = rule['via'] && registry.resolve(rule['via'], name)
+      via = compile_via(rule['via'], registry, rule, name, defaults)
 
       key_sets(rule.fetch('keys').map(&:to_sym), Array(rule['optional']).map(&:to_sym)).map do |keys|
         Binding.new(
@@ -167,11 +228,56 @@ module Ceradoc
       end
     end
 
+    # A `via` string is a named hook (resolved through the registry); a
+    # mapping compiles to the verb call it declares, with an optional
+    # `then:` hook applied to the verb's result. Like a hook, a verb
+    # reads its fields from the assigned attributes, but what it returns
+    # is what the model is built from: `flatten` and `promote` produce
+    # attribute mappings, merged over the rule's defaults; `unwrap` and
+    # `string` return a bare value.
+    def self.compile_via(via, registry, rule, name, defaults)
+      return nil unless via
+      return registry.resolve(via, name) if via.is_a?(String)
+
+      verb = via['verb']
+      raise ArgumentError, "model bindings: rule #{name.inspect} names unknown verb #{verb.inspect}" unless BindingVerbs::VERBS.key?(verb)
+
+      then_hook = via['then'] && registry.resolve(via['then'], name)
+      scoped = rule['scoped'] || false
+      config = verb_config(verb, via)
+
+      lambda do |attributes, context = nil|
+        result = BindingVerbs.public_send(verb, attributes, **config)
+        result = defaults.merge(result) if VERBS_THAT_MERGE.include?(verb)
+        next result unless then_hook
+
+        scoped ? then_hook.call(result, context) : then_hook.call(result)
+      end
+    end
+
+    def self.verb_config(verb, via)
+      case verb
+      when 'unwrap', 'flatten' then { key: via['key']&.to_sym }
+      when 'string' then { capture: via.fetch('capture').to_sym }
+      else
+        { source: via['source']&.to_sym,
+          attrs: via.fetch('attrs').to_h { |attribute, spec| [attribute.to_sym, promote_spec(attribute, spec)] } }
+      end
+    end
+
+    def self.promote_spec(attribute, spec)
+      spec = { 'key' => spec } if spec.is_a?(String)
+      spec = { 'key' => attribute }.merge(spec) unless spec.key?('key')
+      { key: spec.fetch('key').to_sym, as: spec['as']&.to_sym,
+        strip: spec['strip'] || false, wrap: spec['wrap'] || false, default: spec['default'] || [] }
+    end
+
     def self.key_sets(keys, optional)
       required = keys - optional
       (0..optional.size).flat_map { |n| optional.combination(n).map { |picked| required + picked } }
     end
-    private_class_method :validate_rule, :rule_bindings, :key_sets
+    private_class_method :validate_rule, :validate_via, :rule_bindings, :key_sets, :compile_via, :verb_config,
+                         :promote_spec
 
     # Resolves a rule's `via` hook name to its callable. The table's
     # top-level `hooks` map declares which names the table references;

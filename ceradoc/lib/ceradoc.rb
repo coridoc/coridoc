@@ -36,6 +36,7 @@ module Ceradoc
   autoload :CLI, 'ceradoc/cli'
   autoload :Visitor, 'ceradoc/visitor'
   autoload :BindingInflater, 'ceradoc/binding_inflater'
+  autoload :BindingVerbs, 'ceradoc/binding_verbs'
   autoload :LinkRewriter, 'ceradoc/link_rewriter'
   autoload :RelativePath, 'ceradoc/relative_path'
 end

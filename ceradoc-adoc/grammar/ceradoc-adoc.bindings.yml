@@ -1,60 +1,49 @@
-# Rule -> model bindings for the AsciiDoc grammar (ceradoc#385, stage 1).
-# `rake grammar:compile` embeds this table in the artifact under
-# `model_bindings`; Ceradoc::BindingInflater.from_table reads it from
-# there and the Ruby Binding constants are retired.
+# Rule -> model bindings for the AsciiDoc grammar (ceradoc#385 stage 1,
+# ceradoc#386 stage 2). `rake grammar:compile` embeds this table in the
+# artifact under `model_bindings`; Ceradoc::BindingInflater.from_table
+# reads it from there and the Ruby Binding constants are retired.
 #
-# Schema 1.1: `keys` is the raw-tree node's exact capture-key set, `model`
+# Schema 1.2: `keys` is the raw-tree node's exact capture-key set, `model`
 # the name resolved through Bindings::MODELS (null = hook-only rule),
 # `captures`/`children` both feed the recursive inflation (scalar vs
 # nested-node captures), `defaults` fixes attributes, `raw` assigns a
-# capture as captured, `via` names a hook declared in the `hooks` map and
-# resolved through Bindings::HOOKS. The hooks stay Ruby (stage 2).
-version: '1.1'
+# capture as captured. A rule's step is `via`: a hook name declared in
+# the `hooks` map (the genuinely semantic residue), or a declarative
+# verb — `unwrap`, `flatten`, `promote`, `string` (see
+# Ceradoc::BindingVerbs) — optionally followed by a `then:` hook that
+# receives the verb's result. Rules that are pure capture-to-attribute
+# wiring carry no `via` at all.
+version: '1.2'
 hooks:
-  header: Hooks#header
+  header_id: Hooks#header_id
   paragraph: Hooks#paragraph
   list_item: Hooks#list_item
-  list: Hooks#list
   dlist_term: Hooks#dlist_term
   definition_list_item: Hooks#definition_list_item
   definition_list: Hooks#definition_list
   formatting: Hooks#formatting
-  span: Hooks#span
   script: Hooks#script
-  link: Hooks#link
-  cross_reference: Hooks#cross_reference
   inline_image: Hooks#inline_image
-  passthrough: Hooks#passthrough
   typographic_quote: Hooks#typographic_quote
-  footnote: Hooks#footnote
-  stem: Hooks#stem
-  text: StructureHooks#text
-  text_with_break: StructureHooks#text_with_break
-  unparsed: StructureHooks#unparsed
   block: StructureHooks#block
   admonition: StructureHooks#admonition
   block_image: StructureHooks#block_image
   table_cell: StructureHooks#table_cell
-  unwrap_cell: StructureHooks#unwrap(cell)
-  unwrap_row: StructureHooks#unwrap(row)
   table: StructureHooks#table
   title: StructureHooks#title
   section: StructureHooks#section
   document: StructureHooks#document
   comment_line: StructureHooks#comment_line
-  comment_block: StructureHooks#comment_block
-  tag: StructureHooks#tag
-  named_attribute: StructureHooks#named_attribute
   attribute_list: StructureHooks#attribute_list
-  attribute: StructureHooks#attribute
-  include: StructureHooks#include
 rules:
   header:
     keys: [header]
     model: Header
     children:
       header: header
-    via: header
+    via:
+      verb: flatten
+      then: header_id
   author:
     keys: [first_name, last_name, email]
     model: Author
@@ -88,7 +77,9 @@ rules:
     model: null
     children:
       list: list
-    via: list
+    via:
+      verb: unwrap
+      key: list
   unordered_list:
     keys: [unordered]
     model: List::Unordered
@@ -145,13 +136,31 @@ rules:
     model: Inline::Link
     children:
       link: link
-    via: link
+    via:
+      verb: promote
+      source: link
+      attrs:
+        path:
+          as: string
+        name:
+          key: text
+          as: string_or_nil
   cross_reference:
     keys: [cross_reference]
     model: Inline::CrossReference
     children:
       xref: cross_reference
-    via: cross_reference
+    via:
+      verb: promote
+      source: xref
+      attrs:
+        href:
+          as: string
+        args:
+          key: text
+          as: string
+          wrap: true
+          default: []
   inline_image:
     keys: [inline_image]
     model: Image::InlineImage
@@ -163,7 +172,15 @@ rules:
     model: Inline::Passthrough
     children:
       passthrough: inline_passthrough
-    via: passthrough
+    defaults:
+      form: triple
+    via:
+      verb: promote
+      source: passthrough
+      attrs:
+        content:
+          key: raw
+          as: string
   attribute_reference:
     keys: [attribute_reference]
     model: Inline::AttributeReference
@@ -191,14 +208,27 @@ rules:
     model: Inline::Footnote
     captures:
       footnote: footnote
-    via: footnote
+    via:
+      verb: promote
+      attrs:
+        text:
+          key: footnote
+          as: joined
   footnote_id:
     keys: [footnote, id]
     model: Inline::Footnote
     captures:
       footnote: footnote
       id: id
-    via: footnote
+    via:
+      verb: promote
+      attrs:
+        text:
+          key: footnote
+          as: joined
+        id:
+          key: id
+          as: string
   bold_constrained:
     keys: [bold_constrained]
     model: Inline::Bold
@@ -270,7 +300,12 @@ rules:
       span: span_constrained
     defaults:
       unconstrained: false
-    via: span
+    via:
+      verb: promote
+      source: span
+      attrs:
+        text: text
+        attributes: attribute_list
   span_unconstrained:
     keys: [span_unconstrained]
     model: Inline::Span
@@ -278,7 +313,12 @@ rules:
       span: span_unconstrained
     defaults:
       unconstrained: true
-    via: span
+    via:
+      verb: promote
+      source: span
+      attrs:
+        text: text
+        attributes: attribute_list
   superscript:
     keys: [superscript]
     model: Inline::Superscript
@@ -296,20 +336,23 @@ rules:
     model: Inline::Stem
     children:
       stem: stem
-    via: stem
+    via:
+      verb: promote
+      source: stem
+      attrs:
+        type: stem_type
+        content: content
   text:
     keys: [text]
     model: TextElement
     captures:
-      text: text
-    via: text
+      content: text
   text_line_break:
     keys: [line_break, text]
     model: TextElement
     captures:
-      text: text
+      content: text
       line_break: line_break
-    via: text_with_break
   line_break:
     keys: [line_break]
     model: LineBreak
@@ -320,7 +363,9 @@ rules:
     model: null
     captures:
       text: unparsed
-    via: unparsed
+    via:
+      verb: string
+      capture: text
   block:
     keys: [block]
     model: null
@@ -353,13 +398,17 @@ rules:
     model: null
     children:
       cell: cell
-    via: unwrap_cell
+    via:
+      verb: unwrap
+      key: cell
   table_row_cells:
     keys: [row]
     model: null
     children:
       row: row
-    via: unwrap_row
+    via:
+      verb: unwrap
+      key: row
   table_row:
     keys: [cells]
     model: TableRow
@@ -402,7 +451,11 @@ rules:
     model: CommentBlock
     children:
       comment_block: comment_block
-    via: comment_block
+    via:
+      verb: promote
+      source: comment_block
+      attrs:
+        text: comment_text
   page_break:
     keys: [page_break]
     model: Break::PageBreak
@@ -411,13 +464,29 @@ rules:
     model: Tag
     children:
       tag: tag
-    via: tag
+    via:
+      verb: promote
+      source: tag
+      attrs:
+        name: name
+        attrs: attribute_list
+        line_break: line_break
+        prefix: prefix
   named_attribute:
     keys: [named]
     model: Attribute
     children:
       named: named
-    via: named_attribute
+    via:
+      verb: promote
+      source: named
+      attrs:
+        key:
+          key: named_key
+          as: string
+        value:
+          key: named_value
+          as: string
   attribute_array:
     keys: [attribute_array]
     model: null
@@ -431,14 +500,28 @@ rules:
       key: key
       value: value
       line_break: line_break
-    via: attribute
+    via:
+      verb: promote
+      attrs:
+        key:
+          as: string
+        value:
+          as: joined
+        line_break:
+          as: string
   attribute:
     keys: [key, value]
     model: Attribute
     captures:
       key: key
       value: value
-    via: attribute
+    via:
+      verb: promote
+      attrs:
+        key:
+          as: string
+        value:
+          as: joined
   document_attributes:
     keys: [document_attributes]
     model: DocumentAttributes
@@ -449,4 +532,11 @@ rules:
     model: Include
     children:
       include: include
-    via: include
+    via:
+      verb: promote
+      source: include
+      attrs:
+        path:
+          as: string
+        attributes: attribute_list
+        line_break: line_break

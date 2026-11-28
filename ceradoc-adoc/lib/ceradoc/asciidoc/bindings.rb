@@ -17,22 +17,24 @@ module Ceradoc
 
       Binding = Ceradoc::BindingInflater::Binding
 
-      # Named hooks: the ~20% of rules that are not pure
-      # capture-to-attribute wiring.
+      # Named hooks: the genuinely semantic residue of the rule set
+      # (ceradoc#386). The shapes — wrapper unwrapping, field promotion,
+      # stringifying — are declarative verbs in the bindings table
+      # (schema 1.2); a hook here is a step the verbs cannot express.
       module Hooks
         module_function
 
-        # Header: flatten the raw `{title:, author:, revision:}` capture
-        # and inherit the id from a Title model when the header has none.
-        def header(attributes)
-          raw = attributes.fetch(:header)
-          title = raw[:title]
-          id = raw[:id]
+        # The header's id, after the table's flatten verb merged the raw
+        # `{title:, author:, revision:}` capture up: a Title that carries
+        # an id lends it to a header without one.
+        def header_id(attributes)
+          title = attributes.fetch(:title)
+          id = attributes[:id]
           id = title.id if title.is_a?(Model::Title) && title.id && !id
           id = id.to_s unless id.nil?
           id = nil if id&.empty?
 
-          { id:, title:, author: raw[:author], revision: raw[:revision] }
+          attributes.merge(id: id)
         end
 
         # Paragraph: raw `lines` become TextElements (same-line joins and
@@ -70,11 +72,6 @@ module Ceradoc
           else
             nested
           end
-        end
-
-        # `list:` wrapper node: the inner list passes through.
-        def list(attributes)
-          attributes.fetch(:list)
         end
 
         # Definition-list term: flatten to `{text:, id:, delimiter:}`.
@@ -125,23 +122,11 @@ module Ceradoc
             unconstrained: attributes.fetch(:unconstrained) }
         end
 
-        def span(attributes)
-          raw = attributes.fetch(:span)
-          { text: raw[:text], unconstrained: attributes.fetch(:unconstrained), attributes: raw[:attribute_list] }
-        end
-
+        # Superscript/subscript: the inner capture inflates to a
+        # TextElement (its `{text:}` shape binds the text rule) and the
+        # model carries it as the content as is.
         def script(attributes)
           { content: Transformer.extract_simple_inline_content(attributes.fetch(:script)) }
-        end
-
-        def link(attributes)
-          raw = attributes.fetch(:link)
-          { path: raw[:path].to_s, name: raw[:text]&.to_s }
-        end
-
-        def cross_reference(attributes)
-          raw = attributes.fetch(:xref)
-          { href: raw[:href].to_s, args: raw[:text] ? [raw[:text].to_s] : [] }
         end
 
         def inline_image(attributes)
@@ -152,74 +137,40 @@ module Ceradoc
           { src: raw[:path], attributes: residual, **promoted }
         end
 
-        # Both passthrough forms carry an opaque payload; `form` records the
-        # syntax so the serializer can round-trip it.
-        def passthrough(attributes)
-          { content: attributes.fetch(:passthrough)[:raw].to_s, form: 'triple' }
-        end
-
         # Typographic quotes collapse to the single Unicode character at
         # parse time (shared TypographicQuotes table).
         def typographic_quote(attributes)
           { content: Ceradoc::AsciiDoc::TypographicQuotes.char_for(attributes.fetch(:pattern)) }
         end
-
-        # Footnote text arrives as a string or (empty reference) a sequence.
-        def footnote(attributes)
-          raw = attributes.fetch(:footnote)
-          text = raw.is_a?(Array) ? raw.map(&:to_s).join : raw.to_s
-          attributes.key?(:id) ? { text:, id: attributes[:id].to_s } : { text: }
-        end
-
-        def stem(attributes)
-          raw = attributes.fetch(:stem)
-          { type: raw[:stem_type], content: raw[:content] }
-        end
       end
 
       # The table's registries: model names to classes (lazily resolved,
       # so bound rules never load the model set up front) and hook names
-      # to callables. The artifact table references both by name only.
+      # to callables for the semantic residue. The artifact table
+      # references the models, hooks and verbs by name only.
       MODELS = ->(name) { Model.const_get(name) }
 
       HOOKS = {
-        'header' => Hooks.method(:header),
+        'header_id' => Hooks.method(:header_id),
         'paragraph' => Hooks.method(:paragraph),
         'list_item' => Hooks.method(:list_item),
-        'list' => Hooks.method(:list),
         'dlist_term' => Hooks.method(:dlist_term),
         'definition_list_item' => Hooks.method(:definition_list_item),
         'definition_list' => Hooks.method(:definition_list),
         'formatting' => Hooks.method(:formatting),
-        'span' => Hooks.method(:span),
         'script' => Hooks.method(:script),
-        'link' => Hooks.method(:link),
-        'cross_reference' => Hooks.method(:cross_reference),
         'inline_image' => Hooks.method(:inline_image),
-        'passthrough' => Hooks.method(:passthrough),
         'typographic_quote' => Hooks.method(:typographic_quote),
-        'footnote' => Hooks.method(:footnote),
-        'stem' => Hooks.method(:stem),
-        'text' => StructureHooks.method(:text),
-        'text_with_break' => StructureHooks.method(:text_with_break),
-        'unparsed' => StructureHooks.method(:unparsed),
         'block' => StructureHooks.method(:block),
         'admonition' => StructureHooks.method(:admonition),
         'block_image' => StructureHooks.method(:block_image),
         'table_cell' => StructureHooks.method(:table_cell),
-        'unwrap_cell' => StructureHooks.unwrap(:cell),
-        'unwrap_row' => StructureHooks.unwrap(:row),
         'table' => StructureHooks.method(:table),
         'title' => StructureHooks.method(:title),
         'section' => StructureHooks.method(:section),
         'document' => StructureHooks.method(:document),
         'comment_line' => StructureHooks.method(:comment_line),
-        'comment_block' => StructureHooks.method(:comment_block),
-        'tag' => StructureHooks.method(:tag),
-        'named_attribute' => StructureHooks.method(:named_attribute),
-        'attribute_list' => StructureHooks.method(:attribute_list),
-        'attribute' => StructureHooks.method(:attribute),
-        'include' => StructureHooks.method(:include)
+        'attribute_list' => StructureHooks.method(:attribute_list)
       }.freeze
 
       class << self

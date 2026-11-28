@@ -4,26 +4,10 @@ module Ceradoc
   module AsciiDoc
     module Bindings
       # Hooks for the text, block, table, section and attribute rules: the
-      # semantic steps that are not pure capture-to-attribute wiring.
+      # genuinely semantic residue (ceradoc#386) — the shapes live as
+      # verbs in the bindings table.
       module StructureHooks
         module_function
-
-        # A text capture is either one slice or a sequence of inlines.
-        def text_content(value)
-          value.is_a?(Array) ? value : value.to_s
-        end
-
-        def text(attributes)
-          { content: text_content(attributes.fetch(:text)) }
-        end
-
-        def text_with_break(attributes)
-          { content: text_content(attributes.fetch(:text)), line_break: attributes.fetch(:line_break) }
-        end
-
-        def unparsed(attributes)
-          attributes.fetch(:text).to_s
-        end
 
         # Generic delimited block: the delimiter picks the model class
         # (BlockTypeClassifier); capture order is kept for the serializer.
@@ -56,10 +40,6 @@ module Ceradoc
 
         def table_cell(attributes)
           Transformer.build_table_cell(attributes.fetch(:format), attributes.fetch(:text))
-        end
-
-        def unwrap(key)
-          ->(attributes) { attributes.fetch(key) }
         end
 
         # `table:` wrapper: an already-built Table passes through.
@@ -108,30 +88,6 @@ module Ceradoc
           Model::CommentLine.new(text: raw[:comment_text], line_break: raw[:line_break])
         end
 
-        def comment_block(attributes)
-          { text: attributes.fetch(:comment_block)[:comment_text] }
-        end
-
-        def tag(attributes)
-          raw = attributes.fetch(:tag)
-          { name: raw[:name], attrs: raw[:attribute_list], line_break: raw[:line_break], prefix: raw[:prefix] }
-        end
-
-        def named_attribute(attributes)
-          raw = attributes.fetch(:named)
-          { key: raw[:named_key].to_s, value: raw[:named_value].to_s }
-        end
-
-        def attribute(attributes)
-          value = attributes.fetch(:value)
-          # A zero-repeat value capture materializes as [] on the native
-          # path (valueless attribute lines, #364) — flatten before the
-          # string conversion or the model carries the literal "[]".
-          value = value.join if value.is_a?(Array)
-          { key: attributes.fetch(:key).to_s, value: value.to_s,
-            **(attributes.key?(:line_break) ? { line_break: attributes[:line_break].to_s } : {}) }
-        end
-
         # An attribute list: `{positional: value}` entries stay raw here (the
         # slice keeps the source line the list is stamped with), named
         # entries are already Attributes.
@@ -145,12 +101,6 @@ module Ceradoc
             end
           end
           list
-        end
-
-        # Include directive: the target path, its attributes and line ending.
-        def include(attributes)
-          raw = attributes.fetch(:include)
-          { path: raw[:path].to_s, attributes: raw[:attribute_list], line_break: raw[:line_break] }
         end
       end
     end
